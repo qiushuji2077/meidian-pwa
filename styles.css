@@ -66,6 +66,30 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
   box-shadow:0 8px 28px rgba(255,85,56,.4)}
 .btn-cart:active,.btn-buy:active{transform:scale(.97)}
 
+/* floating cart bar */
+.cartbar{position:fixed;z-index:40;left:50%;transform:translateX(-50%);
+  bottom:calc(18px + env(safe-area-inset-bottom));width:min(488px,calc(100% - 28px));
+  background:linear-gradient(135deg,#fff8f4,#fff);color:#1a1512;border-radius:20px;
+  padding:11px 12px 11px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  box-shadow:0 14px 40px rgba(0,0,0,.4);animation:cartIn .28s ease}
+.cartbar .sum{font-weight:800;font-size:15px;min-width:0}
+.cartbar .sum small{display:block;font-size:10px;font-weight:500;color:#888;margin-top:2px}
+.cartbar .badge{width:28px;height:28px;border-radius:50%;background:#171411;color:#fff;
+  display:grid;place-items:center;font-size:12px;font-weight:800;flex-shrink:0}
+.cartbar button{border:0;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;
+  border-radius:14px;padding:11px 16px;font-weight:800;font-size:13px;flex-shrink:0}
+@keyframes cartIn{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+.cart-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.cart-row img{width:56px;height:56px;border-radius:12px;object-fit:cover;background:#2a221c;flex-shrink:0}
+.cart-row .meta{flex:1;min-width:0}
+.cart-row .meta b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-row .meta span{font-size:12px;color:var(--accent2);font-weight:700}
+.cart-qty{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cart-qty button{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);
+  background:rgba(255,255,255,.06);color:#fff;font-size:15px;line-height:1}
+.cart-qty b{font-size:13px;min-width:16px;text-align:center}
+
 .hint-swipe{position:absolute;right:14px;bottom:42%;z-index:2;writing-mode:vertical-rl;
   font-size:10px;color:rgba(255,255,255,.35);letter-spacing:3px;font-weight:600;
   opacity:1;transition:opacity .5s}

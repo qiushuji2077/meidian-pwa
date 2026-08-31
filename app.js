@@ -71,7 +71,7 @@ const items = [
 
 const state = {
   page: 'feed',
-  cart: [],
+  cart: JSON.parse(localStorage.getItem('meidian-cart') || '[]'),
   orders: JSON.parse(localStorage.getItem('meidian-orders') || '[]'),
   activeOrder: JSON.parse(localStorage.getItem('meidian-active') || 'null'),
   feedOrder: shuffle([...items]),
@@ -91,6 +91,39 @@ function shuffle(arr) {
 function save() {
   localStorage.setItem('meidian-orders', JSON.stringify(state.orders));
   localStorage.setItem('meidian-active', JSON.stringify(state.activeOrder));
+  localStorage.setItem('meidian-cart', JSON.stringify(state.cart.map(x => ({
+    id: x.id, name: x.name, price: x.price, orig: x.orig, qty: x.qty, img: x.img, shop: x.shop,
+  }))));
+}
+
+function cartCount() {
+  return state.cart.reduce((s, x) => s + x.qty, 0);
+}
+
+function cartTotal() {
+  return state.cart.reduce((s, x) => s + x.price * x.qty, 0);
+}
+
+function cartBarHTML() {
+  if (!state.cart.length || state.page !== 'feed') return '';
+  const n = cartCount();
+  return `<div class="cartbar" id="cartbar">
+    <div class="badge">${n > 99 ? '99+' : n}</div>
+    <div class="sum">${money(cartTotal())}<small>${n} 件商品 · 点此查看</small></div>
+    <button type="button" id="openCart">去结算</button>
+  </div>`;
+}
+
+function refreshCartBar() {
+  const old = $('#cartbar');
+  if (old) old.remove();
+  if (state.page !== 'feed' || !state.cart.length) return;
+  $('#app')?.insertAdjacentHTML('beforeend', cartBarHTML());
+  $('#openCart') && ($('#openCart').onclick = openCart);
+  $('#cartbar') && ($('#cartbar').onclick = e => {
+    if (e.target.id === 'openCart') return;
+    openCart();
+  });
 }
 
 function totalSaved() {
@@ -164,7 +197,7 @@ function slideHTML(item, idx) {
 }
 
 function feedPage() {
-  return `${topbar()}<div class="feed" id="feed">${state.feedOrder.map((x, i) => slideHTML(x, i)).join('')}</div>`;
+  return `${topbar()}<div class="feed" id="feed">${state.feedOrder.map((x, i) => slideHTML(x, i)).join('')}</div>${cartBarHTML()}`;
 }
 
 function ordersPage() {
@@ -195,8 +228,74 @@ function addToCart(id) {
   if (!x) return;
   const c = state.cart.find(i => i.id === id);
   if (c) c.qty++; else state.cart.push({ ...x, qty: 1 });
+  save();
   vibrate(15);
   showToast(`已加入购物车 · ${x.name}`);
+  refreshCartBar();
+}
+
+function openCart() {
+  if (!state.cart.length) {
+    showToast('购物车还是空的');
+    return;
+  }
+  $('#overlay')?.remove();
+  const total = cartTotal();
+  const orig = state.cart.reduce((s, x) => s + x.orig * x.qty, 0);
+  const saved = +(orig - total).toFixed(1);
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="overlay" id="overlay">
+      <section class="sheet">
+        <div class="handle"></div>
+        <h3>购物车</h3>
+        <div class="sub">共 ${cartCount()} 件 · 已优惠 ${money(saved)}</div>
+        <div id="cartList">${state.cart.map(x => `
+          <div class="cart-row" data-cid="${x.id}">
+            <img src="${x.img}" alt="" loading="lazy">
+            <div class="meta"><b>${x.name}</b><span>${money(x.price)}</span></div>
+            <div class="cart-qty">
+              <button type="button" data-dec="${x.id}">−</button>
+              <b>${x.qty}</b>
+              <button type="button" data-inc="${x.id}">＋</button>
+            </div>
+          </div>`).join('')}
+        </div>
+        <div class="lineitem" style="border:0;margin-top:6px"><b>合计</b><b style="color:var(--accent2);font-size:18px" id="cartSheetTotal">${money(total)}</b></div>
+        <button class="primary" id="cartCheckout">去结算 · ${money(total)}</button>
+        <button class="ghost" id="clearCart">清空购物车</button>
+        <button class="ghost" id="close">继续逛逛</button>
+      </section>
+    </div>`);
+
+  const rebind = () => {
+    $$('[data-inc]').forEach(b => b.onclick = () => {
+      const c = state.cart.find(i => i.id === b.dataset.inc);
+      if (c) { c.qty++; save(); openCart(); refreshCartBar(); }
+    });
+    $$('[data-dec]').forEach(b => b.onclick = () => {
+      const c = state.cart.find(i => i.id === b.dataset.dec);
+      if (!c) return;
+      c.qty--;
+      if (c.qty <= 0) state.cart = state.cart.filter(i => i.id !== c.id);
+      save();
+      if (!state.cart.length) { $('#overlay')?.remove(); refreshCartBar(); showToast('购物车已清空'); return; }
+      openCart();
+      refreshCartBar();
+    });
+  };
+  rebind();
+  $('#close').onclick = () => $('#overlay').remove();
+  $('#clearCart').onclick = () => {
+    state.cart = [];
+    save();
+    $('#overlay').remove();
+    refreshCartBar();
+    showToast('购物车已清空');
+  };
+  $('#cartCheckout').onclick = () => {
+    $('#overlay').remove();
+    openCheckout();
+  };
 }
 
 function openCheckout(presetId) {
@@ -233,11 +332,11 @@ function openCheckout(presetId) {
   $('#close').onclick = () => $('#overlay').remove();
   $('#pay').onclick = () => {
     $('#overlay').remove();
-    showPaySuccess(list, total, saved);
+    showPaySuccess(list, total, saved, !presetId);
   };
 }
 
-function showPaySuccess(list, total, saved) {
+function showPaySuccess(list, total, saved, clearCart = true) {
   document.body.insertAdjacentHTML('beforeend', `
     <div class="overlay" id="overlay">
       <section class="sheet">
@@ -269,7 +368,7 @@ function showPaySuccess(list, total, saved) {
   };
 
   $('#track').onclick = () => {
-    state.cart = [];
+    if (clearCart) state.cart = [];
     state.orders.unshift(order);
     state.activeOrder = order;
     save();
@@ -514,6 +613,8 @@ function render() {
   bindTop();
   bindFeedBtns();
   observeFeed();
+  refreshCartBar();
+  $('#openCart') && ($('#openCart').onclick = openCart);
 }
 
 if ('serviceWorker' in navigator) {
