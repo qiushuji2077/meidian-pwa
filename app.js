@@ -96,13 +96,14 @@ const state = {
   orders: JSON.parse(localStorage.getItem('meidian-orders') || '[]'),
   activeOrder: JSON.parse(localStorage.getItem('meidian-active') || 'null'),
   moods: JSON.parse(localStorage.getItem('meidian-moods') || '[]'),
+  wanted: JSON.parse(localStorage.getItem('meidian-wanted') || '[]'),
   hasRevealed: localStorage.getItem('meidian-revealed') === '1',
   playlist: [],
   seenRound: new Set(),
   round: 0,
   logical: 0,
   dwellCount: 0,
-  stay: {},
+  stay: JSON.parse(localStorage.getItem('meidian-stay') || '{}'),
   stayStart: 0,
   stayCat: null,
   shownCta: new Set(),
@@ -132,24 +133,20 @@ function shuffle(arr) {
 
 function byId(id) { return items.find(x => x.id === id); }
 
+const OPENERS = ['mala', 'bbq', 'fried'];
 function nextItemId() {
+  if (!state.playlist.length) {
+    const id = pick(OPENERS);
+    state.seenRound.add(id);
+    return id;
+  }
   let pool = items.filter(x => !state.seenRound.has(x.id));
   if (!pool.length) {
     state.seenRound.clear();
     state.round++;
-    pool = [...items];
-  }
-  if (state.round > 0) {
-    const weights = pool.map(x => 1 + (state.stay[x.cat] || 0) / 8000);
-    const sum = weights.reduce((s, n) => s + n, 0);
-    let r = Math.random() * sum;
-    for (let i = 0; i < pool.length; i++) {
-      r -= weights[i];
-      if (r <= 0) {
-        state.seenRound.add(pool[i].id);
-        return pool[i].id;
-      }
-    }
+    const last = state.playlist[state.playlist.length - 1];
+    pool = items.filter(x => x.id !== last);
+    if (!pool.length) pool = [...items];
   }
   const id = pick(pool).id;
   state.seenRound.add(id);
@@ -167,8 +164,11 @@ function save() {
   localStorage.setItem('meidian-active', JSON.stringify(state.activeOrder));
   localStorage.setItem('meidian-cart', JSON.stringify(state.cart.map(x => ({
     id: x.id, name: x.name, price: x.price, orig: x.orig, qty: x.qty, img: x.img, shop: x.shop,
+    minutes: x.minutes, addedAt: x.addedAt,
   }))));
   localStorage.setItem('meidian-moods', JSON.stringify(state.moods));
+  localStorage.setItem('meidian-wanted', JSON.stringify(state.wanted));
+  localStorage.setItem('meidian-stay', JSON.stringify(state.stay));
   if (state.hasRevealed) localStorage.setItem('meidian-revealed', '1');
 }
 
@@ -193,11 +193,67 @@ function showToast(text) {
 const STAGE_CUTS = [0, 0.18, 0.4, 0.72, 1];
 const MOOD_CTA = {
   passed: '那就到这里',
-  still: '明天再看看',
+  still: '那就是真的想要',
   unsure: '先放一会儿',
 };
 const PAPER = '#f3f1ec';
 const NIGHT = '#0a0908';
+const DAY_MS = 24 * 60 * 60 * 1000;
+const CAT_LABEL = {
+  spicy: '麻辣', grill: '烧烤', fried: '炸物', seafood: '海鲜', noodles: '面食',
+  western: '西式', rice: '米饭', dimsum: '点心', snack: '小吃', drink: '饮料', sweet: '甜品',
+};
+
+function orderEtaMinutes(list, total) {
+  const base = Math.max(...list.map(x => +x.minutes || 20));
+  const jitter = Math.round(Math.random() * 4 - 2);
+  const bump = total >= 100 ? 10 : total >= 60 ? 4 : 0;
+  return Math.max(8, base + jitter + bump);
+}
+
+async function ensureNotifyPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  try {
+    return (await Notification.requestPermission()) === 'granted';
+  } catch (_) {
+    return false;
+  }
+}
+
+function fireDeliveredNotice(o) {
+  if (!o || o.notified || o.revealed) return;
+  o.notified = true;
+  save();
+  if (document.visibilityState === 'visible') return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const payload = { type: 'notify-delivered', orderId: o.id };
+  navigator.serviceWorker?.ready.then(reg => {
+    if (reg.active) reg.active.postMessage(payload);
+    else if (reg.showNotification) {
+      return reg.showNotification('美点', {
+        body: '您的订单已送达',
+        icon: './icons/icon-192.png',
+        tag: 'meidian-delivered-' + o.id,
+        data: { url: './' },
+      });
+    }
+  }).catch(() => {
+    try { new Notification('美点', { body: '您的订单已送达', icon: './icons/icon-192.png' }); } catch (_) { /* ignore */ }
+  });
+}
+
+function scheduleDeliveredNotice(o) {
+  if (!o || o.notified || o.revealed) return;
+  clearTimeout(o._notifyT);
+  const wait = Math.max(0, orderDueAt(o) - Date.now());
+  o._notifyT = setTimeout(() => {
+    reconcileOrders();
+    const row = state.orders.find(x => x.id === o.id) || o;
+    if (row.done && !row.notified) fireDeliveredNotice(row);
+  }, wait);
+}
 
 function orderEtaMs(o) {
   return o.etaMs || (o.eta || 0) * 60 * 1000;
@@ -220,6 +276,7 @@ function maybeApplyDelay(o) {
     o.etaMs = orig + (60 + Math.random() * 90) * 1000;
     syncListedOrder(o);
     save();
+    scheduleDeliveredNotice(o);
     return true;
   }
   save();
@@ -248,16 +305,123 @@ function syncListedOrder(o) {
   const row = state.orders.find(x => x.id === o.id);
   if (row && row !== o) Object.assign(row, o);
 }
-function syncActiveOrder() {
-  const o = state.activeOrder;
-  if (!o || o.done || o.revealed) return o;
-  if (orderProgress(o) >= 1) {
-    o.done = true;
-    o.status = 4;
-    syncListedOrder(o);
-    save();
+function orderDueAt(o) {
+  const start = o.startedAt || Date.parse(o.time) || 0;
+  return start + orderEtaMs(o);
+}
+function reconcileOrders() {
+  let changed = false;
+  for (const o of state.orders) {
+    if (!o || o.done) continue;
+    maybeApplyDelay(o);
+    if (Date.now() >= orderDueAt(o)) {
+      o.done = true;
+      o.status = 4;
+      changed = true;
+    }
   }
-  return o;
+  if (state.activeOrder) {
+    const o = state.activeOrder;
+    if (!o.done) {
+      maybeApplyDelay(o);
+      if (Date.now() >= orderDueAt(o)) {
+        o.done = true;
+        o.status = 4;
+        changed = true;
+      }
+    }
+    syncListedOrder(o);
+  }
+  if (changed) save();
+}
+function pendingRevealOrder() {
+  reconcileOrders();
+  return state.orders
+    .filter(o => o.done && !o.revealed)
+    .sort((a, b) => (a.startedAt || Date.parse(a.time) || 0) - (b.startedAt || Date.parse(b.time) || 0))[0] || null;
+}
+function liveOrder() {
+  return state.orders.find(x => x && !x.done && !x.revealed) || null;
+}
+function rememberWanted(o, lasting = false) {
+  const prev = state.wanted.find(w => w.orderId === o.id);
+  const entry = {
+    orderId: o.id,
+    items: (o.items || []).map(x => ({ id: x.id, name: x.name, cat: x.cat, price: x.price })),
+    amount: orderAmount(o),
+    at: prev?.at || new Date().toISOString(),
+    lasting: lasting || !!prev?.lasting,
+  };
+  state.wanted = state.wanted.filter(w => w.orderId !== o.id);
+  state.wanted.unshift(entry);
+  o.stillWanted = true;
+}
+
+function pendingFollowUp() {
+  const now = Date.now();
+  return state.orders
+    .filter(o => o.revealed && o.followUpAt && !o.followUpDone && o.followUpAt <= now)
+    .sort((a, b) => a.followUpAt - b.followUpAt)[0] || null;
+}
+
+function hourBand(h) {
+  if (h >= 23 || h < 2) return '凌晨 0–2 点';
+  if (h < 5) return '凌晨 2–5 点';
+  if (h < 11) return '上午';
+  if (h < 17) return '下午';
+  if (h < 21) return '晚上';
+  return '夜里 21–23 点';
+}
+
+function archiveSentences() {
+  const lines = [];
+  const moods = state.moods || [];
+  if (moods.length) {
+    const buckets = {};
+    moods.forEach(m => {
+      const b = hourBand(m.hour);
+      buckets[b] = (buckets[b] || 0) + 1;
+    });
+    const peak = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
+    if (peak) lines.push(`你最常在${peak[0]}开这些单。`);
+  }
+  const withMins = moods.filter(m => m.minutes != null);
+  if (withMins.length >= 2) {
+    const passed = withMins.filter(m => m.mood === 'passed').length;
+    const avg = Math.round(withMins.reduce((s, m) => s + m.minutes, 0) / withMins.length);
+    lines.push(`下单大约 ${avg} 分钟后，${withMins.length} 次里有 ${passed} 次好像过去了。`);
+  }
+  const stayEntries = Object.entries(state.stay || {}).sort((a, b) => b[1] - a[1]);
+  if (stayEntries.length && stayEntries[0][1] > 3000) {
+    const cat = CAT_LABEL[stayEntries[0][0]] || stayEntries[0][0];
+    lines.push(`你在「${cat}」上停得最久。`);
+  }
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const lasting = (state.wanted || []).filter(w => w.lasting && new Date(w.at) >= monthStart);
+  if (lasting.length) lines.push(`这个月，有 ${lasting.length} 件过了一夜还想要。`);
+  const kept = totalKept();
+  const n = state.orders.filter(o => o.done).length;
+  if (n) lines.push(`留下 ${money(kept)} · ${n} 笔。`);
+  if (!lines.length) lines.push('还没有足够的记录。过几单再看。');
+  return lines;
+}
+
+function cartDays(x) {
+  if (!x.addedAt) return 0;
+  return Math.floor((Date.now() - x.addedAt) / DAY_MS);
+}
+
+function revealShow(el, extra) {
+  if (!el) return;
+  el.classList.add('on');
+  if (extra) extra.split(' ').forEach(c => el.classList.add(c));
+  el.removeAttribute('aria-hidden');
+}
+function syncActiveOrder() {
+  reconcileOrders();
+  return state.activeOrder;
 }
 function setBrandChrome() {
   document.title = state.hasRevealed ? '没点' : '美点';
@@ -277,7 +441,7 @@ function islandHTML() {
   const done = o.done || orderProgress(o) >= 1;
   const mins = Math.max(1, Math.ceil(etaLeft(o) / 60000));
   return `<button class="island ${done ? 'done' : ''}" id="islandBtn" type="button">
-    <img src="${o.driver.avatar}" alt="">
+    <img src="${o.driver.avatar}" alt="${o.driver.name}">
     <span>${done ? '已送达' : `${o.driver.name}还有 <b class="eta" id="islandEta">${mins}</b> 分钟`}</span>
   </button>`;
 }
@@ -290,6 +454,7 @@ function topbar() {
     <div class="tabs">
       <button data-page="feed" class="${state.page === 'feed' ? 'on' : ''}">推荐</button>
       <button data-page="orders" class="${state.page === 'orders' ? 'on' : ''}">订单</button>
+      ${state.hasRevealed ? `<button data-page="archive" class="${state.page === 'archive' ? 'on' : ''}">档案</button>` : ''}
     </div>
   </div>`;
 }
@@ -301,8 +466,8 @@ function itemMeta(item) {
 function slideHTML(item, idx) {
   return `<section class="slide" data-id="${item.id}" data-idx="${idx}">
     <div class="pic-ph"></div>
-    <img class="bg" src="${item.img}" alt="" style="object-position:${item.focal || '50% 50%'}"
-      loading="${idx < 2 ? 'eager' : 'lazy'}" decoding="async"
+    <img class="bg" src="${item.img}" alt="${item.name}" style="object-position:${item.focal || '50% 50%'}"
+      loading="${Math.abs(idx - state.logical) <= 1 ? 'eager' : 'lazy'}" decoding="async"
       onload="this.classList.add('ready')" onerror="this.classList.add('err')">
     <div class="veil"></div>
     ${idx === 0 ? '<div class="hint-swipe" id="swipeHint">上滑看更多</div>' : ''}
@@ -331,7 +496,7 @@ function cartBarHTML() {
   const last = state.cart[state.cart.length - 1];
   const n = cartCount();
   return `<div class="cartbar" id="cartbar">
-    <img src="${last.img}" alt="">
+    <img src="${last.img}" alt="${last.name}">
     <div class="sum">${money(cartTotal())}<small>${n} 件 · 去结算</small></div>
     <button type="button" id="openCart">去结算</button>
   </div>`;
@@ -373,6 +538,7 @@ function observeFeed() {
         if (state.stayCat && state.stayStart) {
           const dt = Date.now() - state.stayStart;
           state.stay[state.stayCat] = (state.stay[state.stayCat] || 0) + dt;
+          save();
         }
         state.stayCat = item?.cat;
         state.stayStart = Date.now();
@@ -392,6 +558,13 @@ function observeFeed() {
   };
 }
 
+function updateSlideLazy() {
+  $$('.slide img.bg').forEach(imgEl => {
+    const idx = +imgEl.closest('.slide')?.dataset.idx;
+    if (Number.isFinite(idx) && Math.abs(idx - state.logical) <= 1) imgEl.loading = 'eager';
+  });
+}
+
 function onFeedSnap() {
   const feed = $('#feed');
   if (!feed || state._snapping) return;
@@ -401,7 +574,9 @@ function onFeedSnap() {
   const next = start + vis;
   if (next !== state.logical) {
     state.logical = Math.max(0, next);
-    paintFeedWindow();
+    ensureAhead();
+    if (vis <= 1 || vis >= WINDOW - 2) paintFeedWindow();
+    else updateSlideLazy();
   }
 }
 
@@ -475,7 +650,8 @@ function addToCart(id) {
   const x = byId(id);
   if (!x) return;
   const c = state.cart.find(i => i.id === id);
-  if (c) c.qty++; else state.cart.push({ ...x, qty: 1 });
+  if (c) c.qty++;
+  else state.cart.push({ ...x, qty: 1, addedAt: Date.now() });
   save();
   vibrate(15);
   showToast(`已加入购物车 · ${x.name}`);
@@ -539,16 +715,25 @@ function openCart() {
         <div class="handle"></div>
         <h3>购物车</h3>
         <div class="sub">共 ${cartCount()} 件${promo ? ` · 已优惠 ${money(promo)}` : ''}</div>
-        ${state.cart.map(x => `
-          <div class="cart-row">
-            <img src="${x.img}" alt="" loading="lazy">
-            <div class="meta"><b>${x.name}</b><span>${money(x.price)}</span></div>
+        ${state.cart.map(x => {
+          const days = cartDays(x);
+          const age = days >= 1
+            ? `<div class="cart-age">
+                <span>已放 ${days} 天 · 现在还想要吗？</span>
+                <button type="button" data-keep="${x.id}">还要</button>
+                <button type="button" data-drop="${x.id}">拿走</button>
+              </div>`
+            : '';
+          return `<div class="cart-row">
+            <img src="${x.img}" alt="${x.name}" loading="lazy">
+            <div class="meta"><b>${x.name}</b><span>${money(x.price)}</span>${age}</div>
             <div class="cart-qty">
               <button type="button" data-dec="${x.id}">−</button>
               <b>${x.qty}</b>
               <button type="button" data-inc="${x.id}">＋</button>
             </div>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
         <div class="lineitem" style="border:0;margin-top:6px"><b>合计</b><b style="color:var(--accent);font-size:18px">${money(total)}</b></div>
         <button class="primary" id="cartCheckout">去结算 · ${money(total)}</button>
         <button class="ghost" id="clearCart">清空购物车</button>
@@ -574,6 +759,21 @@ function openCart() {
     state.cart = []; save(); $('#overlay').remove(); refreshCartBar();
   };
   $('#cartCheckout').onclick = () => { $('#overlay').remove(); openCheckout(); };
+  $$('[data-keep]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const c = state.cart.find(i => i.id === b.dataset.keep);
+    if (c) c.addedAt = Date.now();
+    save();
+    openCart();
+  });
+  $$('[data-drop]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    state.cart = state.cart.filter(i => i.id !== b.dataset.drop);
+    save();
+    if (!state.cart.length) { $('#overlay')?.remove(); refreshCartBar(); return; }
+    openCart();
+    refreshCartBar();
+  });
 }
 
 function openCheckout(presetId) {
@@ -593,11 +793,11 @@ function openCheckout(presetId) {
         <h3>确认订单</h3>
         <div class="sub">请核对商品与配送信息</div>
         <div class="address"><b>送到 · 家门口</b><span class="tiny">备注：放门口，勿敲门</span></div>
-        ${list.map(x => `<div class="lineitem"><span>${x.name} × ${x.qty}</span><b>${money(x.price * x.qty)}</b></div>`).join('')}
+        ${list.map(x => `<div class="lineitem"><span>${x.name} × ${x.qty}</span><b>${money((x.orig ?? x.price) * x.qty)}</b></div>`).join('')}
         <div class="lineitem"><span>配送费</span><span style="color:var(--good)">已减免</span></div>
         ${promo ? `<div class="lineitem"><span>优惠</span><span style="color:var(--accent)">−${money(promo)}</span></div>` : ''}
         <div class="lineitem"><b>实付</b><b style="color:var(--accent);font-size:18px">${money(total)}</b></div>
-        <button class="primary" id="pay">微信支付 · ${money(total)}</button>
+        <button class="primary" id="pay">确认支付 · ${money(total)}</button>
         <button class="ghost" id="close">取消</button>
       </section>
     </div>`);
@@ -624,12 +824,14 @@ function showPaySuccess(list, total, promo, clearCart = true) {
       </section>
     </div>`);
   vibrate(24);
-  const jitter = (Math.random() * 4 - 1);
-  const etaMin = Math.round(14 + Math.random() * 6 + jitter);
+  const etaMin = orderEtaMinutes(list, total);
   const order = {
     id: Date.now(),
     time: new Date().toISOString(),
-    items: list.map(x => ({ id: x.id, name: x.name, price: x.price, qty: x.qty, orig: x.orig, cat: x.cat })),
+    items: list.map(x => ({
+      id: x.id, name: x.name, price: x.price, qty: x.qty, orig: x.orig, cat: x.cat,
+      minutes: x.minutes || byId(x.id)?.minutes,
+    })),
     orderAmount: total,
     promoSaved: promo,
     actualPaid: 0,
@@ -646,12 +848,15 @@ function showPaySuccess(list, total, promo, clearCart = true) {
     status: -1,
     delayEvent: false,
     delayTried: false,
+    notified: false,
   };
+  ensureNotifyPermission();
   const goTrack = () => {
     if (clearCart) state.cart = [];
     state.orders.unshift(order);
     state.activeOrder = order;
     save();
+    scheduleDeliveredNotice(order);
     $('#overlay').remove();
     renderOrder(order);
   };
@@ -661,6 +866,7 @@ function showPaySuccess(list, total, promo, clearCart = true) {
     state.orders.unshift(order);
     state.activeOrder = order;
     save();
+    scheduleDeliveredNotice(order);
     $('#overlay').remove();
     state.page = 'feed';
     render();
@@ -734,7 +940,7 @@ function renderOrder(o) {
       <div class="eta-pill" id="etaBox">${o.done ? '已送达' : `预计 <b id="etaMin">${Math.max(1, Math.ceil(etaLeft(o) / 60000))}</b> 分钟送达`}</div>
     </div>
     <div class="driver-row">
-      <img src="${o.driver.avatar}" alt="">
+      <img src="${o.driver.avatar}" alt="${o.driver.name}">
       <div class="driver-info">
         <b>${o.driver.name}</b>
         <span>${o.driver.plate}</span>
@@ -807,6 +1013,7 @@ function progress(o) {
   maybeApplyDelay(o);
   let pHold = orderProgress(o);
   let idx = stageFromProgress(pHold);
+  let lastMap = 0;
   paintSteps(o, idx);
   replayChats(o, idx);
   setMapProgress(pHold);
@@ -817,7 +1024,11 @@ function progress(o) {
     const pNow = orderProgress(o);
     if (o.delayEvent && !hadDelay) addChat('商家说还要一会儿，出餐稍慢');
     if (pNow >= pHold) pHold = pNow;
-    setMapProgress(pHold);
+    const now = Date.now();
+    if (now - lastMap >= 1000 || (o.delayEvent && !hadDelay)) {
+      lastMap = now;
+      setMapProgress(pHold);
+    }
     const next = stageFromProgress(pHold);
     if (next > idx) {
       for (let s = idx + 1; s <= next; s++) {
@@ -846,19 +1057,22 @@ function markDelivered(o) {
   o.status = 4;
   syncListedOrder(o);
   save();
+  if (document.visibilityState !== 'visible') fireDeliveredNotice(o);
+  else { o.notified = true; save(); }
   if (state.page === 'delivery') startReveal(o);
 }
 
 function moodBlock() {
-  return `<div class="mood" id="rMood">
+  return `<div class="mood" id="rMood" aria-hidden="true">
     <label>现在还想吃吗？</label>
     <div class="mood-btns">
       <button type="button" data-mood="still">还是很想吃</button>
       <button type="button" data-mood="passed">好像过去了</button>
       <button type="button" data-mood="unsure">说不清</button>
     </div>
+    <p class="mood-note" id="rNote"></p>
   </div>
-  <div class="reveal-nav" id="rNav">
+  <div class="reveal-nav" id="rNav" aria-hidden="true">
     <button class="primary" id="primaryCta" type="button"></button>
     <button class="ghost" id="keepBrowse" type="button">继续逛逛</button>
   </div>`;
@@ -869,7 +1083,9 @@ function bindRevealActions(o, amt) {
     $$('[data-mood]').forEach(x => x.classList.remove('sel'));
     b.classList.add('sel');
     const mins = Math.round((Date.now() - new Date(o.time).getTime()) / 60000);
+    state.moods = state.moods.filter(m => m.orderId !== o.id);
     state.moods.push({
+      orderId: o.id,
       mood: b.dataset.mood,
       hour: new Date().getHours(),
       cats: (o.items || []).map(x => x.cat),
@@ -880,13 +1096,32 @@ function bindRevealActions(o, amt) {
     o.mood = b.dataset.mood;
     o.revealed = true;
     state.hasRevealed = true;
+    if (b.dataset.mood === 'still') {
+      rememberWanted(o);
+      o.followUpAt = Date.now() + DAY_MS;
+    }
+    if (b.dataset.mood === 'unsure') o.followUpAt = Date.now() + DAY_MS;
     save();
     setBrandChrome();
+    const note = $('#rNote');
+    if (note) {
+      if (b.dataset.mood === 'still') {
+        note.textContent = '这次不算冲动了。';
+        note.classList.add('on');
+      } else {
+        note.textContent = '';
+        note.classList.remove('on');
+      }
+    }
     const cta = $('#primaryCta');
     if (cta) cta.textContent = MOOD_CTA[b.dataset.mood] || '那就到这里';
-    $('#rNav')?.classList.add('on');
+    revealShow($('#rNav'));
   });
-  $('#primaryCta').onclick = () => finishReveal(o, 'orders');
+  $('#primaryCta').onclick = () => {
+    const mood = o.mood;
+    save();
+    finishReveal(o, mood === 'unsure' ? 'feed' : 'orders');
+  };
   $('#keepBrowse').onclick = () => finishReveal(o, 'feed');
 }
 
@@ -895,9 +1130,68 @@ function finishReveal(o, page) {
   state.hasRevealed = true;
   save();
   setBrandChrome();
+  const next = pendingRevealOrder();
+  if (next && next.id !== o.id) {
+    state.activeOrder = next;
+    startReveal(next);
+    return;
+  }
+  const fu = pendingFollowUp();
+  if (fu) {
+    state.activeOrder = liveOrder() || o;
+    save();
+    startFollowUp(fu);
+    return;
+  }
+  state.activeOrder = liveOrder() || o;
+  save();
   setRevealChrome(false);
   state.page = page;
   render();
+}
+
+function startFollowUp(o) {
+  if (!o) {
+    setRevealChrome(false);
+    state.page = 'feed';
+    render();
+    return;
+  }
+  clearDeliveryTimers();
+  state.page = 'followup';
+  state._followUp = o;
+  setRevealChrome(true);
+  const name = o.items?.[0]?.name || '那一单';
+  $('#app').innerHTML = `<div class="reveal-screen paper" id="revealScreen">
+    <p class="reveal-line on" id="r1">隔了一天。</p>
+    <p class="reveal-line on" id="r2">${name}</p>
+    <p class="reveal-line on" id="r3">现在还想吃吗？</p>
+    <div class="mood on">
+      <div class="mood-btns">
+        <button type="button" data-fu="still">还是想吃</button>
+        <button type="button" data-fu="passed">好像过去了</button>
+      </div>
+    </div>
+  </div>`;
+  $$('[data-fu]').forEach(b => b.onclick = () => {
+    o.followUpDone = true;
+    o.followUpMood = b.dataset.fu;
+    if (b.dataset.fu === 'still') rememberWanted(o, true);
+    save();
+    const next = pendingFollowUp();
+    if (next) { startFollowUp(next); return; }
+    state._followUp = null;
+    setRevealChrome(false);
+    state.activeOrder = liveOrder() || o;
+    state.page = 'feed';
+    render();
+  });
+}
+
+function archivePage() {
+  return `${topbar()}<div class="page">
+    <div class="archive">${archiveSentences().map(s => `<p>${s}</p>`).join('')}</div>
+  </div>`;
 }
 
 function startReveal(o) {
@@ -912,11 +1206,11 @@ function startReveal(o) {
   if (first) {
     setRevealChrome(false);
     $('#app').innerHTML = `<div class="reveal-screen" id="revealScreen">
-      <p class="reveal-line" id="r1">已送达。</p>
-      <p class="reveal-line" id="r2">门口什么也没有。</p>
-      <p class="reveal-line money" id="r3">${money(amt)} 也没有离开你。</p>
-      <div class="brand-flip" id="rBrand"><span class="word word-a">美点</span><span class="word word-b">没点</span></div>
-      <div class="tri" id="rTri">
+      <p class="reveal-line" id="r1" aria-hidden="true">已送达。</p>
+      <p class="reveal-line" id="r2" aria-hidden="true">门口什么也没有。</p>
+      <p class="reveal-line money" id="r3" aria-hidden="true">${money(amt)} 也没有离开你。</p>
+      <div class="brand-flip" id="rBrand" aria-hidden="true"><span class="word word-a">美点</span><span class="word word-b" aria-hidden="true">没点</span></div>
+      <div class="tri" id="rTri" aria-hidden="true">
         <div><span>模拟订单</span><b>${money(amt)}</b></div>
         <div><span>实际支付</span><b>¥0</b></div>
         <div><span>留下</span><b>${money(amt)}</b></div>
@@ -927,49 +1221,52 @@ function startReveal(o) {
     const cutToPaper = () => {
       $('#r1')?.classList.remove('on', 'cut');
       $('#r1')?.classList.add('cut-away');
+      $('#r1')?.setAttribute('aria-hidden', 'true');
       $('#revealScreen')?.classList.add('paper');
       setRevealChrome(true);
-      $('#r2')?.classList.add('on', 'cut');
+      revealShow($('#r2'), 'cut');
     };
     const lockBrand = () => {
       state.hasRevealed = true;
       save();
       setBrandChrome();
+      $('#rBrand .word-a')?.setAttribute('aria-hidden', 'true');
+      $('#rBrand .word-b')?.removeAttribute('aria-hidden');
     };
     if (slow) {
       cutToPaper();
-      $('#r3')?.classList.add('on');
-      $('#rBrand')?.classList.add('on', 'gone');
-      $('#rTri')?.classList.add('on');
-      $('#rMood')?.classList.add('on');
+      revealShow($('#r3'));
+      revealShow($('#rBrand'), 'gone');
+      revealShow($('#rTri'));
+      revealShow($('#rMood'));
       lockBrand();
     } else {
-      $('#r1')?.classList.add('on', 'cut');
+      revealShow($('#r1'), 'cut');
       t(cutToPaper, 800);
-      t(() => $('#r3')?.classList.add('on'), 2600);
-      t(() => $('#rBrand')?.classList.add('on'), 3400);
+      t(() => revealShow($('#r3')), 2600);
+      t(() => revealShow($('#rBrand')), 3400);
       t(() => { $('#rBrand')?.classList.add('gone'); lockBrand(); }, 4200);
-      t(() => $('#rTri')?.classList.add('on'), 4800);
-      t(() => $('#rMood')?.classList.add('on'), 5200);
+      t(() => revealShow($('#rTri')), 4800);
+      t(() => revealShow($('#rMood')), 5200);
     }
     return;
   }
 
   setRevealChrome(true);
   $('#app').innerHTML = `<div class="reveal-screen paper" id="revealScreen">
-    <p class="reveal-line" id="r1">又一单，没有真的发生。</p>
-    <p class="reveal-line" id="r2">${money(amt)} 留下了。</p>
+    <p class="reveal-line" id="r1" aria-hidden="true">又一单，没有真的发生。</p>
+    <p class="reveal-line" id="r2" aria-hidden="true">${money(amt)} 留下了。</p>
     ${moodBlock()}
   </div>`;
   bindRevealActions(o, amt);
   if (slow) {
-    $('#r1')?.classList.add('on');
-    $('#r2')?.classList.add('on');
-    $('#rMood')?.classList.add('on');
+    revealShow($('#r1'));
+    revealShow($('#r2'));
+    revealShow($('#rMood'));
   } else {
-    t(() => $('#r1')?.classList.add('on'), 200);
-    t(() => $('#r2')?.classList.add('on'), 700);
-    t(() => $('#rMood')?.classList.add('on'), 1300);
+    t(() => revealShow($('#r1')), 200);
+    t(() => revealShow($('#r2')), 700);
+    t(() => revealShow($('#rMood')), 1300);
   }
 }
 
@@ -1046,12 +1343,21 @@ function render() {
   clearDwell();
   clearDeliveryTimers();
   cancelAnimationFrame(state.mapRaf);
-  if (state.page !== 'reveal') setRevealChrome(false);
+  if (state.page !== 'reveal' && state.page !== 'followup') setRevealChrome(false);
   const o = syncActiveOrder();
   const app = $('#app');
   if (state.page === 'orders') {
     app.innerHTML = ordersPage();
     bindTop();
+    return;
+  }
+  if (state.page === 'archive') {
+    app.innerHTML = archivePage();
+    bindTop();
+    return;
+  }
+  if (state.page === 'followup') {
+    startFollowUp(state._followUp || pendingFollowUp());
     return;
   }
   if (state.page === 'reveal' && o) {
@@ -1110,6 +1416,30 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-if (state.activeOrder) syncActiveOrder();
+reconcileOrders();
+state.orders.filter(o => !o.revealed && !o.notified).forEach(o => {
+  if (o.done) fireDeliveredNotice(o);
+  else scheduleDeliveredNotice(o);
+});
+{
+  const pending = pendingRevealOrder();
+  if (pending) {
+    state.activeOrder = pending;
+    state.page = 'reveal';
+  } else {
+    const fu = pendingFollowUp();
+    if (fu) {
+      state._followUp = fu;
+      state.page = 'followup';
+    }
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (state.stayCat && state.stayStart) {
+    state.stay[state.stayCat] = (state.stay[state.stayCat] || 0) + (Date.now() - state.stayStart);
+    state.stayStart = Date.now();
+  }
+  localStorage.setItem('meidian-stay', JSON.stringify(state.stay || {}));
+});
 setBrandChrome();
 render();

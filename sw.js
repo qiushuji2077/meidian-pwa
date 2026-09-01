@@ -1,4 +1,4 @@
-const CACHE = 'meidian-v5';
+const CACHE = 'meidian-v6';
 const CORE = [
   './',
   './index.html',
@@ -57,5 +57,31 @@ self.addEventListener('fetch', e => {
         return r;
       })
       .catch(() => caches.match(e.request))
+  );
+});
+
+self.addEventListener('message', e => {
+  const d = e.data || {};
+  if (d.type !== 'notify-delivered') return;
+  e.waitUntil(
+    self.registration.showNotification('美点', {
+      body: '您的订单已送达',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      tag: 'meidian-delivered-' + (d.orderId || ''),
+      data: { url: './' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = e.notification.data?.url || './';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const hit = list.find(c => 'focus' in c);
+      if (hit) return hit.focus();
+      return self.clients.openWindow(url);
+    })
   );
 });
