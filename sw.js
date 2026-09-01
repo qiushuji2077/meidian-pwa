@@ -1,4 +1,4 @@
-const CACHE = 'meidian-v4';
+const CACHE = 'meidian-v5';
 const CORE = [
   './',
   './index.html',
@@ -7,6 +7,11 @@ const CORE = [
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './images/mala.webp',
+  './images/bbq.webp',
+  './images/fried.webp',
+  './images/burger.webp',
+  './images/xiaomian.webp',
 ];
 
 self.addEventListener('install', e => {
@@ -28,7 +33,6 @@ self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (u.origin !== location.origin) return;
 
-  // 本地图片：缓存优先，适合静态站离线
   if (u.pathname.includes('/images/')) {
     e.respondWith(
       caches.match(e.request).then(hit => {
@@ -45,7 +49,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // 壳资源：网络优先，失败回退缓存
   e.respondWith(
     fetch(e.request)
       .then(r => {

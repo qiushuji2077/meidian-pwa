@@ -1,22 +1,14 @@
 # 美点
 
-抖音式竖滑夜宵 Feed。图片全部本地 WebP，适合静态站部署。
-
-## 图片
-
-- 目录：`images/*.webp`（约 54 张，合计 ~5MB）
-- 最长边 1080，WebP q≈72–80
-- 过程稿在 `/Users/xiaoruirui/Scratch/meidian-img-tmp`
+抖音式竖滑夜宵。前 90% 像真外卖；送达后揭晓：门口什么也没有，钱没有离开。
 
 ## 本地预览
 
 ```bash
-cd /Users/xiaoruirui/Downloads/meidian-pwa
+cd /Users/xiaoruirui/Scratch/meidian-pwa
 python3 -m http.server 4173
 ```
 
 打开 http://localhost:4173
 
-## 配送
-
-支付成功后预计 12–20 分钟，按真实时间分 5 阶段推进（接单 → 制作 → 取餐 → 接近 → 送达）。
+图片为本地 `images/*.webp`，骑手头像在 `images/riders/`。
