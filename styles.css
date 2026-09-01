@@ -7,6 +7,7 @@
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",sans-serif;
   -webkit-font-smoothing:antialiased;overflow:hidden}
+body.reveal-paper{background:#f3f1ec;color:#161412}
 button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 #app{height:100%;height:100dvh}
 
@@ -162,15 +163,20 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 
 .reveal-screen{position:fixed;inset:0;z-index:70;background:#050403;color:#fff;
   display:flex;flex-direction:column;justify-content:center;padding:48px 28px calc(32px + env(safe-area-inset-bottom))}
+.reveal-screen.paper{background:#f3f1ec;color:#161412}
 .reveal-line{font-size:22px;font-weight:600;letter-spacing:-.3px;line-height:1.35;
   opacity:0;transform:translateY(10px);margin:0 0 14px}
 .reveal-line.on{opacity:1;transform:none;transition:opacity .7s ease,transform .7s ease}
+.reveal-line.cut{opacity:1;transform:none;transition:none}
+.reveal-line.cut-away{opacity:0;height:0;margin:0;overflow:hidden;transform:none;transition:none}
 .reveal-line.money{font-size:20px;color:rgba(255,255,255,.88)}
+.reveal-screen.paper .reveal-line.money{color:#161412}
 .brand-flip{margin:28px 0 8px;height:28px;font-size:15px;font-weight:700;letter-spacing:.2em;
   opacity:0;position:relative;width:4em}
 .brand-flip.on{opacity:1;transition:opacity 1s ease}
 .brand-flip .word{position:absolute;left:0;top:0;color:rgba(255,255,255,.45);
   transition:opacity .9s ease,transform .9s ease}
+.reveal-screen.paper .brand-flip .word{color:#161412}
 .brand-flip .word-b{opacity:0;transform:translateY(6px)}
 .brand-flip.gone .word-a{opacity:0;transform:translateY(-8px)}
 .brand-flip.gone .word-b{opacity:1;transform:none}
@@ -179,17 +185,26 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .tri div{text-align:left}
 .tri b{display:block;font-size:16px;font-weight:800;margin-top:4px}
 .tri span{font-size:10px;color:rgba(255,255,255,.4)}
+.reveal-screen.paper .tri span{color:rgba(22,20,18,.4)}
 .mood{opacity:0}
 .mood.on{opacity:1;transition:opacity .5s ease}
 .mood label{display:block;font-size:13px;margin-bottom:10px;color:rgba(255,255,255,.7)}
+.reveal-screen.paper .mood label{color:rgba(22,20,18,.5)}
 .mood-btns{display:flex;flex-direction:column;gap:8px}
 .mood-btns button{border:1px solid rgba(255,255,255,.14);border-radius:var(--r18);
   padding:12px;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,.04);text-align:left}
 .mood-btns button.sel{border-color:var(--accent);color:#fff}
-.reveal-nav{margin-top:18px;opacity:0}
-.reveal-nav.on{opacity:1;transition:opacity .4s ease}
+.reveal-screen.paper .mood-btns button{border:1px solid rgba(22,20,18,.2);border-radius:0;
+  color:#161412;background:transparent;padding:12px 0}
+.reveal-screen.paper .mood-btns button.sel{border-color:#161412;color:#161412}
+.reveal-nav{margin-top:18px;opacity:0;pointer-events:none}
+.reveal-nav.on{opacity:1;pointer-events:auto;transition:opacity .4s ease}
+.reveal-screen.paper .primary{background:#161412;color:#f3f1ec;border-radius:0}
+.reveal-screen.paper .ghost{border:0;color:rgba(22,20,18,.38);background:transparent;
+  font-weight:600;font-size:13px;padding:10px 0}
 
 .orders{display:flex;flex-direction:column;gap:10px}
+.orders-head{font-size:13px;font-weight:700;color:rgba(255,255,255,.4);padding:8px 2px 12px;letter-spacing:.04em}
 .kept-banner{padding:8px 2px 18px}
 .kept-banner .label{font-size:11px;color:var(--muted);margin-bottom:4px}
 .kept-banner .num{font-size:32px;font-weight:800;letter-spacing:-1px}
@@ -221,5 +236,8 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
   .cta .price-now,.cta .price-old,.cta .deal,.cta .meta-line,.cta .cta-btns{opacity:1;transform:none}
   .cta.show{pointer-events:auto}
   .map-stage{transition:none}
-  .reveal-line,.brand-flip,.tri,.mood,.reveal-nav{opacity:1;transform:none}
+  .reveal-screen.paper .reveal-line:not(.cut-away),
+  .reveal-screen.paper .brand-flip,
+  .reveal-screen.paper .tri,
+  .reveal-screen.paper .mood{opacity:1;transform:none}
 }

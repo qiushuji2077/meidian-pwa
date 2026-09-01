@@ -111,6 +111,16 @@ const state = {
   mapRaf: 0,
 };
 
+(function adoptActiveOrder() {
+  const o = state.activeOrder;
+  if (!o) return;
+  const row = state.orders.find(x => x.id === o.id);
+  if (row) {
+    Object.assign(row, o);
+    state.activeOrder = row;
+  }
+})();
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -180,16 +190,91 @@ function showToast(text) {
   setTimeout(() => el.remove(), 2800);
 }
 
+const STAGE_CUTS = [0, 0.18, 0.4, 0.72, 1];
+const MOOD_CTA = {
+  passed: '那就到这里',
+  still: '明天再看看',
+  unsure: '先放一会儿',
+};
+const PAPER = '#f3f1ec';
+const NIGHT = '#0a0908';
+
+function orderEtaMs(o) {
+  return o.etaMs || (o.eta || 0) * 60 * 1000;
+}
+function orderEtaOrig(o) {
+  return o.etaMsOrig || o.etaMs || (o.eta || 0) * 60 * 1000;
+}
+function maybeApplyDelay(o) {
+  if (!o || o.done || o.delayTried) return false;
+  const orig = orderEtaOrig(o);
+  const elapsed = Date.now() - (o.startedAt || 0);
+  if (elapsed <= orig * 0.2) return false;
+  o.delayTried = true;
+  if (elapsed >= orig) {
+    save();
+    return false;
+  }
+  if (Math.random() < 0.4) {
+    o.delayEvent = true;
+    o.etaMs = orig + (60 + Math.random() * 90) * 1000;
+    syncListedOrder(o);
+    save();
+    return true;
+  }
+  save();
+  return false;
+}
+function orderProgress(o) {
+  if (!o || o.done) return 1;
+  maybeApplyDelay(o);
+  const elapsed = Date.now() - (o.startedAt || 0);
+  return Math.min(1, elapsed / Math.max(1, orderEtaMs(o)));
+}
+function stageFromProgress(p) {
+  if (p >= STAGE_CUTS[4]) return 4;
+  if (p >= STAGE_CUTS[3]) return 3;
+  if (p >= STAGE_CUTS[2]) return 2;
+  if (p >= STAGE_CUTS[1]) return 1;
+  return 0;
+}
 function etaLeft(o) {
   if (!o || o.done) return 0;
-  const total = o.etaMs || o.eta * 60 * 1000;
-  return Math.max(0, total - (Date.now() - (o.startedAt || 0)));
+  maybeApplyDelay(o);
+  return Math.max(0, orderEtaMs(o) - (Date.now() - (o.startedAt || 0)));
+}
+function syncListedOrder(o) {
+  if (!o) return;
+  const row = state.orders.find(x => x.id === o.id);
+  if (row && row !== o) Object.assign(row, o);
+}
+function syncActiveOrder() {
+  const o = state.activeOrder;
+  if (!o || o.done || o.revealed) return o;
+  if (orderProgress(o) >= 1) {
+    o.done = true;
+    o.status = 4;
+    syncListedOrder(o);
+    save();
+  }
+  return o;
+}
+function setBrandChrome() {
+  document.title = state.hasRevealed ? '没点' : '美点';
+}
+function setRevealChrome(paper) {
+  const theme = document.querySelector('meta[name="theme-color"]');
+  const bar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  document.body.classList.toggle('reveal-paper', !!paper);
+  document.documentElement.style.background = paper ? PAPER : '';
+  theme?.setAttribute('content', paper ? PAPER : NIGHT);
+  bar?.setAttribute('content', paper ? 'default' : 'black-translucent');
 }
 
 function islandHTML() {
   const o = state.activeOrder;
   if (!o || o.revealed) return '';
-  const done = o.done || etaLeft(o) <= 0;
+  const done = o.done || orderProgress(o) >= 1;
   const mins = Math.max(1, Math.ceil(etaLeft(o) / 60000));
   return `<button class="island ${done ? 'done' : ''}" id="islandBtn" type="button">
     <img src="${o.driver.avatar}" alt="">
@@ -198,8 +283,9 @@ function islandHTML() {
 }
 
 function topbar() {
+  const brand = state.hasRevealed ? '没<em>点</em>' : '美<em>点</em>';
   return `<div class="topbar">
-    <div class="brand">美<em>点</em></div>
+    <div class="brand">${brand}</div>
     ${state.page === 'feed' ? islandHTML() : ''}
     <div class="tabs">
       <button data-page="feed" class="${state.page === 'feed' ? 'on' : ''}">推荐</button>
@@ -355,27 +441,29 @@ function feedPage() {
 function ordersPage() {
   const kept = totalKept();
   const n = state.orders.filter(o => o.done).length;
-  return `${topbar()}<div class="page">
+  const banner = state.hasRevealed ? `
     <div class="kept-banner">
-      <div class="label">${state.hasRevealed ? '留下' : '累计订单'}</div>
+      <div class="label">留下</div>
       <div class="num">${money(kept)}</div>
       <div class="tri-mini">
         <div><span>模拟订单</span><b>${money(kept)}</b></div>
         <div><span>实际支付</span><b>¥0</b></div>
         <div><span>完成</span><b>${n} 笔</b></div>
       </div>
-    </div>
+    </div>` : `<div class="orders-head">订单</div>`;
+  return `${topbar()}<div class="page">
+    ${banner}
     <div class="orders">${state.orders.length ? state.orders.map(o => {
       const amt = orderAmount(o);
-      const revealed = state.hasRevealed || o.revealed;
+      const status = o.done ? '已送达' : '配送中';
       return `<div class="order-card">
         <div class="topline">
           <b>${o.items[0]?.name || '订单'}${o.items.length > 1 ? ` 等${o.items.length}件` : ''}</b>
-          <b>${revealed ? money(amt) : money(amt)}</b>
+          <b>${money(amt)}</b>
         </div>
         <div class="tiny" style="margin-top:7px">
-          ${new Date(o.time).toLocaleString('zh-CN')} · ${o.done ? (o.revealed ? '已送达' : '已送达') : '配送中'}
-          ${revealed ? ` · 模拟 ${money(amt)} · 实际支付 ¥0` : ''}
+          ${new Date(o.time).toLocaleString('zh-CN')} · ${status}
+          ${state.hasRevealed ? ` · 模拟 ${money(amt)} · 实际支付 ¥0` : ''}
         </div>
       </div>`;
     }).join('') : `<div class="empty"><b>暂无订单</b>上滑挑点好吃的吧</div>`}
@@ -551,11 +639,13 @@ function showPaySuccess(list, total, promo, clearCart = true) {
     driver: pick(DRIVERS),
     eta: etaMin,
     etaMs: etaMin * 60 * 1000,
+    etaMsOrig: etaMin * 60 * 1000,
     startedAt: Date.now(),
     done: false,
     revealed: false,
     status: -1,
     delayEvent: false,
+    delayTried: false,
   };
   const goTrack = () => {
     if (clearCart) state.cart = [];
@@ -632,7 +722,8 @@ function renderOrder(o) {
   cancelAnimationFrame(state.mapRaf);
   state.page = 'delivery';
   state.activeOrder = o;
-  if ((o.done || etaLeft(o) <= 0) && !o.revealed) {
+  syncActiveOrder();
+  if ((o.done || orderProgress(o) >= 1) && !o.revealed) {
     startReveal(o);
     return;
   }
@@ -696,114 +787,84 @@ function setMapProgress(p) {
   }
 }
 
+function replayChats(o, idx) {
+  addChat(`我是${o.driver.name}，这单我送`);
+  if (idx >= 1) addChat(o.driver.msgs[0]);
+  if (idx >= 1 && o.delayEvent) addChat('商家说还要一会儿，出餐稍慢');
+  if (idx >= 2 && o.delayEvent) addChat('商家出餐稍慢，我再等一下');
+  if (idx >= 3) addChat(o.driver.msgs[1]);
+  if (idx >= 4) addChat(o.driver.msgs[2]);
+}
+
+function stageChat(o, s) {
+  if (s === 1) addChat(o.driver.msgs[0]);
+  if (s === 2 && o.delayEvent) addChat('商家出餐稍慢，我再等一下');
+  if (s === 3) addChat(o.driver.msgs[1]);
+  if (s === 4) addChat(o.driver.msgs[2]);
+}
+
 function progress(o) {
-  const start = o.startedAt || Date.now();
-  const stageAt = () => [0, 0.18, 0.4, 0.72, 1].map(p => p * (o.etaMs || o.eta * 60000));
-
-  const tickEta = () => {
-    const left = etaLeft(o);
-    const mins = Math.max(1, Math.ceil(left / 60000));
-    const el = $('#etaMin');
-    if (el) el.textContent = mins;
-    const island = $('#islandEta');
-    if (island) island.textContent = mins;
-    if (left > 0 && !o.done) schedule(tickEta, 15000);
-  };
-
-  const enter = idx => {
-    if (o.done && idx < 4) return;
-    const prev = o.status ?? -1;
-    paintSteps(o, idx);
-    vibrate(12);
-    if (idx === 0 && prev < 0) addChat(`我是${o.driver.name}，这单我送`);
-    if (idx === 1 && prev < 1) addChat(o.driver.msgs[0]);
-    if (idx === 2 && prev < 2 && o.delayEvent) addChat('商家出餐稍慢，我再等一下');
-    if (idx === 3 && prev < 3) addChat(o.driver.msgs[1]);
-    if (idx >= 4) {
-      if (prev < 4) addChat(o.driver.msgs[2]);
-      markDelivered(o);
-    }
-  };
+  maybeApplyDelay(o);
+  let pHold = orderProgress(o);
+  let idx = stageFromProgress(pHold);
+  paintSteps(o, idx);
+  replayChats(o, idx);
+  setMapProgress(pHold);
 
   const loop = () => {
     if (state.page !== 'delivery' || !state.activeOrder || state.activeOrder.id !== o.id) return;
-    const elapsed = Date.now() - start;
-    const total = o.etaMs || o.eta * 60000;
-    const p = Math.min(1, elapsed / total);
-    setMapProgress(p);
-    if (!o.delayTried && elapsed > total * 0.2) {
-      o.delayTried = true;
-      if (Math.random() < 0.4) {
-        o.delayEvent = true;
-        o.etaMs = total + (60 + Math.random() * 90) * 1000;
-        save();
-        addChat('商家说还要一会儿，出餐稍慢');
+    const hadDelay = o.delayEvent;
+    const pNow = orderProgress(o);
+    if (o.delayEvent && !hadDelay) addChat('商家说还要一会儿，出餐稍慢');
+    if (pNow >= pHold) pHold = pNow;
+    setMapProgress(pHold);
+    const next = stageFromProgress(pHold);
+    if (next > idx) {
+      for (let s = idx + 1; s <= next; s++) {
+        paintSteps(o, s);
+        vibrate(12);
+        stageChat(o, s);
       }
+      idx = next;
     }
-    if (p < 1) state.mapRaf = requestAnimationFrame(loop);
+    const el = $('#etaMin');
+    if (el && !o.done) {
+      const mins = String(Math.max(1, Math.ceil(etaLeft(o) / 60000)));
+      if (el.textContent !== mins) el.textContent = mins;
+    }
+    if (pNow >= 1) {
+      markDelivered(o);
+      return;
+    }
+    state.mapRaf = requestAnimationFrame(loop);
   };
   state.mapRaf = requestAnimationFrame(loop);
-
-  let current = 0;
-  const marks = stageAt();
-  const elapsed = Math.max(0, Date.now() - start);
-  for (let i = 0; i < marks.length; i++) if (elapsed >= marks[i]) current = i;
-  enter(current);
-  for (let i = current + 1; i < 5; i++) {
-    const delay = Math.max(0, marks[i] - elapsed);
-    schedule(() => enter(i), delay);
-  }
-  tickEta();
 }
 
 function markDelivered(o) {
   o.done = true;
   o.status = 4;
+  syncListedOrder(o);
   save();
   if (state.page === 'delivery') startReveal(o);
 }
 
-function startReveal(o) {
-  clearDeliveryTimers();
-  cancelAnimationFrame(state.mapRaf);
-  state.page = 'reveal';
-  const amt = orderAmount(o);
-  const slow = reduce();
-  $('#app').innerHTML = `<div class="reveal-screen" id="revealScreen">
-    <p class="reveal-line" id="r1">已送达。</p>
-    <p class="reveal-line" id="r2">门口什么也没有。</p>
-    <p class="reveal-line money" id="r3">${money(amt)} 也没有离开你。</p>
-    <div class="brand-flip" id="rBrand"><span class="word word-a">美点</span><span class="word word-b">没点</span></div>
-    <div class="tri" id="rTri">
-      <div><span>模拟订单</span><b>${money(amt)}</b></div>
-      <div><span>实际支付</span><b>¥0</b></div>
-      <div><span>留下</span><b>${money(amt)}</b></div>
+function moodBlock() {
+  return `<div class="mood" id="rMood">
+    <label>现在还想吃吗？</label>
+    <div class="mood-btns">
+      <button type="button" data-mood="still">还是很想吃</button>
+      <button type="button" data-mood="passed">好像过去了</button>
+      <button type="button" data-mood="unsure">说不清</button>
     </div>
-    <div class="mood" id="rMood">
-      <label>现在还想吃吗？</label>
-      <div class="mood-btns">
-        <button data-mood="still">还是很想吃</button>
-        <button data-mood="passed">好像过去了</button>
-        <button data-mood="unsure">说不清</button>
-      </div>
-    </div>
-    <div class="reveal-nav" id="rNav">
-      <button class="primary" id="backFeed">继续逛逛</button>
-      <button class="ghost" id="toOrders">查看订单</button>
-    </div>
+  </div>
+  <div class="reveal-nav" id="rNav">
+    <button class="primary" id="primaryCta" type="button"></button>
+    <button class="ghost" id="keepBrowse" type="button">继续逛逛</button>
   </div>`;
+}
 
-  const show = (sel, cls = 'on') => $(sel)?.classList.add(cls === 'on' ? 'on' : cls);
-  const t = (fn, ms) => setTimeout(fn, slow ? 0 : ms);
-  t(() => show('#r1'), slow ? 0 : 800);
-  t(() => show('#r2'), slow ? 0 : 1700);
-  t(() => show('#r3'), slow ? 0 : 2600);
-  t(() => show('#rBrand'), slow ? 0 : 3400);
-  t(() => $('#rBrand')?.classList.add('gone'), slow ? 0 : 4200);
-  t(() => show('#rTri'), slow ? 0 : 4800);
-  t(() => show('#rMood'), slow ? 0 : 5200);
-  t(() => show('#rNav'), slow ? 0 : 5600);
-
+function bindRevealActions(o, amt) {
   $$('[data-mood]').forEach(b => b.onclick = () => {
     $$('[data-mood]').forEach(x => x.classList.remove('sel'));
     b.classList.add('sel');
@@ -820,15 +881,96 @@ function startReveal(o) {
     o.revealed = true;
     state.hasRevealed = true;
     save();
+    setBrandChrome();
+    const cta = $('#primaryCta');
+    if (cta) cta.textContent = MOOD_CTA[b.dataset.mood] || '那就到这里';
+    $('#rNav')?.classList.add('on');
   });
-  $('#backFeed').onclick = () => {
-    o.revealed = true; state.hasRevealed = true; save();
-    state.page = 'feed'; render();
-  };
-  $('#toOrders').onclick = () => {
-    o.revealed = true; state.hasRevealed = true; save();
-    state.page = 'orders'; render();
-  };
+  $('#primaryCta').onclick = () => finishReveal(o, 'orders');
+  $('#keepBrowse').onclick = () => finishReveal(o, 'feed');
+}
+
+function finishReveal(o, page) {
+  o.revealed = true;
+  state.hasRevealed = true;
+  save();
+  setBrandChrome();
+  setRevealChrome(false);
+  state.page = page;
+  render();
+}
+
+function startReveal(o) {
+  clearDeliveryTimers();
+  cancelAnimationFrame(state.mapRaf);
+  state.page = 'reveal';
+  const amt = orderAmount(o);
+  const first = !state.hasRevealed;
+  const slow = reduce();
+  const t = (fn, ms) => schedule(fn, slow ? 0 : ms);
+
+  if (first) {
+    setRevealChrome(false);
+    $('#app').innerHTML = `<div class="reveal-screen" id="revealScreen">
+      <p class="reveal-line" id="r1">已送达。</p>
+      <p class="reveal-line" id="r2">门口什么也没有。</p>
+      <p class="reveal-line money" id="r3">${money(amt)} 也没有离开你。</p>
+      <div class="brand-flip" id="rBrand"><span class="word word-a">美点</span><span class="word word-b">没点</span></div>
+      <div class="tri" id="rTri">
+        <div><span>模拟订单</span><b>${money(amt)}</b></div>
+        <div><span>实际支付</span><b>¥0</b></div>
+        <div><span>留下</span><b>${money(amt)}</b></div>
+      </div>
+      ${moodBlock()}
+    </div>`;
+    bindRevealActions(o, amt);
+    const cutToPaper = () => {
+      $('#r1')?.classList.remove('on', 'cut');
+      $('#r1')?.classList.add('cut-away');
+      $('#revealScreen')?.classList.add('paper');
+      setRevealChrome(true);
+      $('#r2')?.classList.add('on', 'cut');
+    };
+    const lockBrand = () => {
+      state.hasRevealed = true;
+      save();
+      setBrandChrome();
+    };
+    if (slow) {
+      cutToPaper();
+      $('#r3')?.classList.add('on');
+      $('#rBrand')?.classList.add('on', 'gone');
+      $('#rTri')?.classList.add('on');
+      $('#rMood')?.classList.add('on');
+      lockBrand();
+    } else {
+      $('#r1')?.classList.add('on', 'cut');
+      t(cutToPaper, 800);
+      t(() => $('#r3')?.classList.add('on'), 2600);
+      t(() => $('#rBrand')?.classList.add('on'), 3400);
+      t(() => { $('#rBrand')?.classList.add('gone'); lockBrand(); }, 4200);
+      t(() => $('#rTri')?.classList.add('on'), 4800);
+      t(() => $('#rMood')?.classList.add('on'), 5200);
+    }
+    return;
+  }
+
+  setRevealChrome(true);
+  $('#app').innerHTML = `<div class="reveal-screen paper" id="revealScreen">
+    <p class="reveal-line" id="r1">又一单，没有真的发生。</p>
+    <p class="reveal-line" id="r2">${money(amt)} 留下了。</p>
+    ${moodBlock()}
+  </div>`;
+  bindRevealActions(o, amt);
+  if (slow) {
+    $('#r1')?.classList.add('on');
+    $('#r2')?.classList.add('on');
+    $('#rMood')?.classList.add('on');
+  } else {
+    t(() => $('#r1')?.classList.add('on'), 200);
+    t(() => $('#r2')?.classList.add('on'), 700);
+    t(() => $('#rMood')?.classList.add('on'), 1300);
+  }
 }
 
 function clearDeliveryTimers() {
@@ -874,6 +1016,7 @@ function bindTop() {
   });
   $('#islandBtn')?.addEventListener('click', () => {
     if (!state.activeOrder) return;
+    syncActiveOrder();
     if (state.activeOrder.done && !state.activeOrder.revealed) startReveal(state.activeOrder);
     else { state.page = 'delivery'; render(); }
   });
@@ -903,10 +1046,8 @@ function render() {
   clearDwell();
   clearDeliveryTimers();
   cancelAnimationFrame(state.mapRaf);
-  const o = state.activeOrder;
-  if (o && !o.done && etaLeft(o) <= 0) {
-    o.done = true; o.status = 4; save();
-  }
+  if (state.page !== 'reveal') setRevealChrome(false);
+  const o = syncActiveOrder();
   const app = $('#app');
   if (state.page === 'orders') {
     app.innerHTML = ordersPage();
@@ -936,10 +1077,9 @@ function tickIsland() {
   if (state.page !== 'feed' || !o || o.revealed) return;
   schedule(() => {
     if (state.page !== 'feed' || !state.activeOrder) return;
-    if (etaLeft(state.activeOrder) <= 0 && !state.activeOrder.done) {
-      state.activeOrder.done = true;
-      state.activeOrder.status = 4;
-      save();
+    syncActiveOrder();
+    const cur = state.activeOrder;
+    if (cur.done) {
       const island = $('#islandBtn span');
       if (island) {
         island.textContent = '已送达';
@@ -948,7 +1088,7 @@ function tickIsland() {
       return;
     }
     const el = $('#islandEta');
-    if (el) el.textContent = Math.max(1, Math.ceil(etaLeft(state.activeOrder) / 60000));
+    if (el) el.textContent = Math.max(1, Math.ceil(etaLeft(cur) / 60000));
     tickIsland();
   }, 15000);
 }
@@ -970,10 +1110,6 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-if (state.activeOrder && !state.activeOrder.done && etaLeft(state.activeOrder) <= 0) {
-  state.activeOrder.done = true;
-  state.activeOrder.status = 4;
-  save();
-}
-
+if (state.activeOrder) syncActiveOrder();
+setBrandChrome();
 render();
