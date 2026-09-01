@@ -84,26 +84,63 @@ const items = [
   { id: 'salad', name: '牛油果鸡胸沙拉', shop: '轻食计划', desc: '油醋汁 · 牛油果 · 鸡胸', price: 32, orig: 42, cat: 'western', focal: '50% 48%', rating: 4.3, monthly: 149, minutes: 20, dist: '1.2km', promo: false },
   { id: 'brunch', name: '全套美式早午餐', shop: '夜厨西餐', desc: '炒蛋 · 培根 · 松饼 · 薯饼', price: 48, orig: 68, cat: 'western', focal: '50% 46%', rating: 4.5, monthly: 132, minutes: 28, dist: '1.8km', promo: true, deal: '套餐立减' },
   { id: 'feast', name: '深夜大盘分享餐', shop: '派对外卖', desc: '炸物拼盘 · 蘸酱齐全', price: 128, orig: 168, cat: 'fried', focal: '50% 48%', rating: 4.6, monthly: 98, minutes: 38, dist: '2.0km', promo: true, deal: '直降 40' },
+
+  { id: 'samswiss', name: '原味伯爵瑞士卷 16片', shop: '山姆会员商店', desc: '动物奶油 · 原味 / 伯爵双拼 · 会员价', price: 59.8, orig: 79.8, cat: 'sweet', focal: '50% 58%', rating: 4.9, monthly: 8600, minutes: 42, dist: '5.2km', promo: true, deal: '会员价' },
+  { id: 'samchicken', name: '招牌美式烤鸡', shop: '山姆会员商店', desc: '约 3 斤 · 出炉即售 · 热食区排队王', price: 39.8, orig: 59.8, cat: 'grill', focal: '50% 48%', rating: 4.7, monthly: 4200, minutes: 38, dist: '5.2km', promo: true, deal: '会员价' },
+  { id: 'samdurian', name: '苏丹王榴莲千层', shop: '山姆会员商店', desc: '整只约 1kg · 榴莲果肉夹层 · 冷藏更好吃', price: 109, orig: 158, cat: 'sweet', focal: '50% 50%', rating: 4.8, monthly: 1860, minutes: 45, dist: '5.4km', promo: true, deal: '会员价' },
+  { id: 'sammochi', name: '原味麻薯面包 24个', shop: '山姆会员商店', desc: '一整盘带走 · 软糯 · 早餐下午茶都合适', price: 29.8, orig: 39.8, cat: 'dimsum', focal: '50% 48%', rating: 4.8, monthly: 5100, minutes: 40, dist: '5.1km', promo: true, deal: '会员价' },
+  { id: 'sambagel', name: '蔓越莓贝果 6个', shop: '山姆会员商店', desc: '空气炸锅复热 · 夹奶酪更好吃', price: 22.6, orig: 32.6, cat: 'snack', focal: '50% 50%', rating: 4.6, monthly: 2400, minutes: 40, dist: '5.3km', promo: false },
+  { id: 'sambean', name: '生牛乳绿豆雪糕', shop: '山姆会员商店', desc: '豆王 · 整颗绿豆 · 冰柜断货王', price: 39.8, orig: 52, cat: 'sweet', focal: '50% 52%', rating: 4.9, monthly: 9200, minutes: 36, dist: '5.0km', promo: true, deal: '断货王' },
+  { id: 'sampork', name: '三味肉松脆', shop: '山姆会员商店', desc: '原味 / 扁桃仁 / 腰果 · 大袋分享', price: 59.9, orig: 79.9, cat: 'snack', focal: '50% 50%', rating: 4.8, monthly: 3300, minutes: 38, dist: '5.2km', promo: true, deal: '会员价' },
+  { id: 'samoranges', name: '冻干脐橙巧克力', shop: '山姆会员商店', desc: '真橙片裹巧克力 · 独立小包', price: 69.8, orig: 89.8, cat: 'snack', focal: '50% 48%', rating: 4.7, monthly: 1540, minutes: 40, dist: '5.4km', promo: false },
+  { id: 'samlime', name: '小青柠汁 1.5L', shop: '山姆会员商店', desc: '大瓶家庭装 · 冰镇更顺', price: 19.8, orig: 28.8, cat: 'drink', focal: '50% 42%', rating: 4.6, monthly: 6100, minutes: 35, dist: '4.8km', promo: true, deal: '会员价' },
+  { id: 'samcroissant', name: '黄油可颂 9个', shop: '山姆会员商店', desc: '复烤更香 · 烘焙区常备', price: 33.8, orig: 45.8, cat: 'dimsum', focal: '50% 48%', rating: 4.7, monthly: 2800, minutes: 40, dist: '5.1km', promo: false },
+
+  { id: 'dyduckpot', name: '螺蛳鸭脚煲', shop: '柳州夜煲', desc: '鸭脚软烂 · 酸笋田螺 · 直播间常客', price: 58, orig: 88, cat: 'spicy', focal: '50% 52%', rating: 4.8, monthly: 62000, minutes: 32, dist: '1.4km', promo: true, deal: '直播爆款' },
+  { id: 'dyburger', name: '中国汉堡套餐', shop: '塔斯汀', desc: '香辣鸡腿堡 · 薯条可乐 · 9.9 起那套', price: 15.9, orig: 22.9, cat: 'western', focal: '50% 42%', rating: 4.5, monthly: 284000, minutes: 18, dist: '0.9km', promo: true, deal: '已售 28万' },
+  { id: 'dyice', name: '柠檬水 + 雪王冰淇淋', shop: '蜜雪冰城', desc: '少冰 · 正常糖 · 门口永远在排队', price: 8, orig: 12, cat: 'drink', focal: '50% 40%', rating: 4.6, monthly: 510000, minutes: 14, dist: '0.5km', promo: true, deal: '直播爆款' },
+  { id: 'dytea', name: '伯牙绝弦', shop: '霸王茶姬', desc: '原叶鲜奶茶 · 少冰七分糖 · 标准杯', price: 16, orig: 22, cat: 'drink', focal: '50% 40%', rating: 4.7, monthly: 197000, minutes: 16, dist: '0.7km', promo: true, deal: '已售 19万' },
+  { id: 'dyhotpot', name: '牛油火锅食材套餐', shop: '锅圈食汇', desc: '一人食 · 毛肚虾滑 · 回家自己煮', price: 49.9, orig: 79.9, cat: 'spicy', focal: '50% 50%', rating: 4.7, monthly: 98000, minutes: 28, dist: '1.2km', promo: true, deal: '直播爆款' },
+  { id: 'dycasing', name: '脆皮淀粉肠 ×5', shop: '夜市淀粉肠', desc: '现炸 · 刷酱 · 半夜刷到就会下单', price: 12, orig: 18, cat: 'snack', focal: '50% 50%', rating: 4.4, monthly: 331000, minutes: 16, dist: '0.6km', promo: true, deal: '已售 33万' },
+  { id: 'dybeef', name: '酸汤肥牛米线', shop: '酸汤馆', desc: '金汤肥牛 · 宽米线 · 加一份牛肉', price: 32, orig: 45, cat: 'noodles', focal: '50% 50%', rating: 4.7, monthly: 125000, minutes: 24, dist: '1.1km', promo: true, deal: '直播爆款' },
+  { id: 'dyskewer', name: '炸串拼盘', shop: '路边炸串', desc: '鸡软骨年糕面筋 · 刷干料', price: 28, orig: 39, cat: 'fried', focal: '50% 52%', rating: 4.6, monthly: 220000, minutes: 20, dist: '0.8km', promo: true, deal: '已售 22万' },
+  { id: 'dyneck', name: '锁鲜装鸭脖', shop: '绝味鸭脖', desc: '微辣 · 真空锁鲜 · 追剧必备', price: 29.9, orig: 42, cat: 'snack', focal: '50% 50%', rating: 4.6, monthly: 156000, minutes: 18, dist: '0.9km', promo: false },
+  { id: 'dydumpling', name: '鲜肉云吞 20只', shop: '袁记云饺', desc: '鲜肉馅 · 可煮可煎 · 一人食刚好', price: 22, orig: 32, cat: 'dimsum', focal: '50% 48%', rating: 4.7, monthly: 84000, minutes: 20, dist: '1.0km', promo: true, deal: '直播爆款' },
+  { id: 'dychop', name: '正新鸡排', shop: '正新鸡排', desc: '现炸大片 · 撒料 · 边走边吃', price: 13.9, orig: 19.9, cat: 'fried', focal: '50% 46%', rating: 4.5, monthly: 412000, minutes: 16, dist: '0.7km', promo: true, deal: '已售 41万' },
+  { id: 'dyshaxian', name: '鸭腿套餐', shop: '沙县小吃', desc: '卤鸭腿 · 蒸饺 · 米饭 · 深夜还开', price: 18, orig: 25, cat: 'rice', focal: '50% 50%', rating: 4.4, monthly: 173000, minutes: 18, dist: '0.6km', promo: false },
+  { id: 'dycold', name: '烤冷面', shop: '东北烤冷面', desc: '铁板现煎 · 甜面酱火腿肠 · 刷蛋', price: 12, orig: 16, cat: 'snack', focal: '50% 50%', rating: 4.5, monthly: 119000, minutes: 17, dist: '0.8km', promo: true, deal: '直播爆款' },
+  { id: 'dyfish', name: '香辣烤鱼 一条', shop: '鱼酷', desc: '119 那条 · 豆芽宽粉 · 可微辣特辣', price: 99, orig: 139, cat: 'grill', focal: '50% 54%', rating: 4.7, monthly: 47000, minutes: 34, dist: '1.8km', promo: true, deal: '预售爆款' },
+  { id: 'dyzibo', name: '小饼 + 羊肉串', shop: '淄博烧烤', desc: '小饼卷串 · 蘸料 · 夜市那一口', price: 48, orig: 68, cat: 'grill', focal: '50% 52%', rating: 4.8, monthly: 71000, minutes: 28, dist: '1.5km', promo: true, deal: '直播爆款' },
 ];
 items.forEach(x => { x.img = img(x.id); });
 
 const WINDOW = 9;
 const HALF = 4;
 
+function readStore(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw == null || raw === '') return fallback;
+    return JSON.parse(raw);
+  } catch (_) {
+    return fallback;
+  }
+}
+
 const state = {
   page: 'feed',
-  cart: JSON.parse(localStorage.getItem('meidian-cart') || '[]'),
-  orders: JSON.parse(localStorage.getItem('meidian-orders') || '[]'),
-  activeOrder: JSON.parse(localStorage.getItem('meidian-active') || 'null'),
-  moods: JSON.parse(localStorage.getItem('meidian-moods') || '[]'),
-  wanted: JSON.parse(localStorage.getItem('meidian-wanted') || '[]'),
+  cart: readStore('meidian-cart', []),
+  orders: readStore('meidian-orders', []),
+  activeOrder: readStore('meidian-active', null),
+  moods: readStore('meidian-moods', []),
+  wanted: readStore('meidian-wanted', []),
   hasRevealed: localStorage.getItem('meidian-revealed') === '1',
   playlist: [],
   seenRound: new Set(),
   round: 0,
   logical: 0,
   dwellCount: 0,
-  stay: JSON.parse(localStorage.getItem('meidian-stay') || '{}'),
+  stay: readStore('meidian-stay', {}),
   stayStart: 0,
   stayCat: null,
   shownCta: new Set(),
@@ -160,16 +197,18 @@ function ensureAhead() {
 }
 
 function save() {
-  localStorage.setItem('meidian-orders', JSON.stringify(state.orders));
-  localStorage.setItem('meidian-active', JSON.stringify(state.activeOrder));
-  localStorage.setItem('meidian-cart', JSON.stringify(state.cart.map(x => ({
-    id: x.id, name: x.name, price: x.price, orig: x.orig, qty: x.qty, img: x.img, shop: x.shop,
-    minutes: x.minutes, addedAt: x.addedAt,
-  }))));
-  localStorage.setItem('meidian-moods', JSON.stringify(state.moods));
-  localStorage.setItem('meidian-wanted', JSON.stringify(state.wanted));
-  localStorage.setItem('meidian-stay', JSON.stringify(state.stay));
-  if (state.hasRevealed) localStorage.setItem('meidian-revealed', '1');
+  try {
+    localStorage.setItem('meidian-orders', JSON.stringify(state.orders));
+    localStorage.setItem('meidian-active', JSON.stringify(state.activeOrder));
+    localStorage.setItem('meidian-cart', JSON.stringify(state.cart.map(x => ({
+      id: x.id, name: x.name, price: x.price, orig: x.orig, qty: x.qty, img: x.img, shop: x.shop,
+      minutes: x.minutes, addedAt: x.addedAt,
+    }))));
+    localStorage.setItem('meidian-moods', JSON.stringify(state.moods));
+    localStorage.setItem('meidian-wanted', JSON.stringify(state.wanted));
+    localStorage.setItem('meidian-stay', JSON.stringify(state.stay));
+    if (state.hasRevealed) localStorage.setItem('meidian-revealed', '1');
+  } catch (_) { /* quota or private mode */ }
 }
 
 function cartCount() { return state.cart.reduce((s, x) => s + x.qty, 0); }
@@ -1400,20 +1439,31 @@ function tickIsland() {
 }
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
+  let armed = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!armed) {
+      armed = true;
+      return;
+    }
+    if (sessionStorage.getItem('meidian-sw-reload')) return;
+    sessionStorage.setItem('meidian-sw-reload', '1');
+    location.reload();
+  });
+
+  const watch = async () => {
+    sessionStorage.removeItem('meidian-sw-reload');
     try {
       const reg = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
-      if (reg.waiting) showToast('已更新，刷新即可');
-      reg.addEventListener('updatefound', () => {
-        const w = reg.installing;
-        w?.addEventListener('statechange', () => {
-          if (w.state === 'installed' && navigator.serviceWorker.controller) {
-            showToast('已更新，下一次打开生效');
-          }
-        });
+      const poke = () => reg.update().catch(() => {});
+      poke();
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') poke();
       });
+      window.addEventListener('focus', poke);
     } catch (_) { /* ignore */ }
-  });
+  };
+  if (document.readyState === 'complete') watch();
+  else window.addEventListener('load', watch);
 }
 
 reconcileOrders();

@@ -1,4 +1,4 @@
-const CACHE = 'meidian-v6';
+const CACHE = 'meidian-v7';
 const CORE = [
   './',
   './index.html',
@@ -7,17 +7,14 @@ const CORE = [
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './images/mala.webp',
-  './images/bbq.webp',
-  './images/fried.webp',
-  './images/burger.webp',
-  './images/xiaomian.webp',
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting())
-  );
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await Promise.all(CORE.map(u => c.add(u).catch(() => {})));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', e => {
