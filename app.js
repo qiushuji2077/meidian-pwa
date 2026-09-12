@@ -204,7 +204,8 @@ function nextItemId() {
 }
 
 function ensureAhead() {
-  while (state.playlist.length < state.logical + HALF + 2) {
+  const need = Math.max(state.logical + HALF + 2, Math.max(0, state.logical - HALF) + WINDOW);
+  while (state.playlist.length < need) {
     state.playlist.push(nextItemId());
   }
 }
