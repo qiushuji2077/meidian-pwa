@@ -111,6 +111,19 @@ const items = [
   { id: 'dycold', name: '烤冷面', shop: '东北烤冷面', desc: '铁板现煎 · 甜面酱火腿肠 · 刷蛋', price: 12, orig: 16, cat: 'snack', focal: '50% 50%', rating: 4.5, monthly: 119000, minutes: 17, dist: '0.8km', promo: true, deal: '直播爆款' },
   { id: 'dyfish', name: '香辣烤鱼 一条', shop: '鱼酷', desc: '119 那条 · 豆芽宽粉 · 可微辣特辣', price: 99, orig: 139, cat: 'grill', focal: '50% 54%', rating: 4.7, monthly: 47000, minutes: 34, dist: '1.8km', promo: true, deal: '预售爆款' },
   { id: 'dyzibo', name: '小饼 + 羊肉串', shop: '淄博烧烤', desc: '小饼卷串 · 蘸料 · 夜市那一口', price: 48, orig: 68, cat: 'grill', focal: '50% 52%', rating: 4.8, monthly: 71000, minutes: 28, dist: '1.5km', promo: true, deal: '直播爆款' },
+
+  { id: 'gurut-bbq', name: '单人烤肉餐（五花 + 牛小排 + 包菜）', shop: '古鲁特', desc: '五花 · 牛小排 · 生菜包肉 · 泡菜碟', price: 59.9, orig: 89, cat: 'barbecue', focal: '50% 58%', rating: 4.8, monthly: 186000, minutes: 32, dist: '1.4km', promo: true, deal: '直播爆款' },
+  { id: 'dahanhao-bbq', name: '朝鲜族五花烤肉双人份', shop: '大叹号·朝鲜族烤肉', desc: '厚切五花 · 蒜片葱花 · 苏子叶', price: 128, orig: 168, cat: 'barbecue', focal: '50% 55%', rating: 4.8, monthly: 54000, minutes: 35, dist: '1.6km', promo: true, deal: '夜宵双人' },
+  { id: 'yinsanshun-bbq', name: '自助烤肉夜宵套餐', shop: '尹三顺自助烤肉屋', desc: '五花牛小排 · 包菜泡菜 · 蛋黄土豆', price: 69.9, orig: 138, cat: 'barbecue', focal: '50% 58%', rating: 4.7, monthly: 92000, minutes: 34, dist: '1.5km', promo: true, deal: '膨胀券' },
+  { id: 'shanzhong-seafood-frog', name: '海鲜大咖蛙蛙煲', shop: '山中无老虎·鱼蛙火锅', desc: '牛蛙腿 · 虾蟹鱿鱼 · 砂锅红油', price: 79.9, orig: 128, cat: 'frog', focal: '50% 52%', rating: 4.8, monthly: 210000, minutes: 36, dist: '1.7km', promo: true, deal: '直播爆款' },
+  { id: 'shanzhong-claw-frog', name: '凤爪蛙蛙煲', shop: '山中无老虎·鱼蛙火锅', desc: '牛蛙腿 · 卤凤爪 · 一人 / 双人', price: 59.9, orig: 89, cat: 'frog', focal: '50% 52%', rating: 4.8, monthly: 248000, minutes: 34, dist: '1.7km', promo: true, deal: '已售 24万' },
+  { id: 'beijing-kaoya', name: '北京烤鸭半只（饼丝甜面酱）', shop: '全聚德', desc: '半只切片 · 荷叶饼 · 黄瓜丝甜面酱', price: 98, orig: 138, cat: 'regional', focal: '50% 58%', rating: 4.7, monthly: 18600, minutes: 38, dist: '2.4km', promo: true, deal: '夜宵半只' },
+  { id: 'fuzhou-fishball', name: '福州鱼丸汤', shop: '同利肉燕', desc: '手打鱼丸 · 清汤紫菜 · 切开有馅', price: 26, orig: 36, cat: 'regional', focal: '50% 52%', rating: 4.8, monthly: 42000, minutes: 22, dist: '1.2km', promo: true, deal: '地方菜热榜' },
+  { id: 'dongpo-pork', name: '东坡肉盖饭', shop: '楼外楼', desc: '两块东坡肉 · 青菜米饭 · 外卖盒', price: 42, orig: 58, cat: 'regional', focal: '50% 52%', rating: 4.7, monthly: 15800, minutes: 28, dist: '1.8km', promo: false },
+  { id: 'xiaoguo-shengjian', name: '鲜肉生煎 8 只', shop: '小郭生煎', desc: '铁板焦底 · 芝麻葱花 · 一口汤汁', price: 22, orig: 32, cat: 'shengjian', focal: '50% 52%', rating: 4.7, monthly: 86000, minutes: 20, dist: '0.9km', promo: true, deal: '烟火榜' },
+  { id: 'pork-guotie', name: '鲜肉锅贴 12 只', shop: '夜市锅贴', desc: '焦底鲜肉 · 红油醋碟 · 12 只一盘', price: 19.9, orig: 28, cat: 'shengjian', focal: '50% 55%', rating: 4.6, monthly: 64000, minutes: 18, dist: '0.8km', promo: true, deal: '夜宵一人食' },
+  { id: 'ziyan-chicken', name: '卤味套餐（鸡 + 凉菜）', shop: '紫燕百味鸡', desc: '卤鸡腿翅 · 拍黄瓜花生菠菜', price: 37, orig: 58, cat: 'luwei', focal: '50% 58%', rating: 4.8, monthly: 174000, minutes: 22, dist: '1.0km', promo: true, deal: '37 元套餐' },
+  { id: 'ziyan-liangcai', name: '夫妻肺片 / 口水鸡拼盘', shop: '紫燕百味鸡', desc: '肺片 · 口水鸡 · 花生碎花椒', price: 42, orig: 62, cat: 'luwei', focal: '50% 55%', rating: 4.7, monthly: 98000, minutes: 20, dist: '1.0km', promo: true, deal: '直播爆款' },
 ];
 items.forEach(x => { x.img = img(x.id); });
 
@@ -191,7 +204,8 @@ function nextItemId() {
 }
 
 function ensureAhead() {
-  while (state.playlist.length < state.logical + HALF + 2) {
+  const need = Math.max(state.logical + HALF + 2, Math.max(0, state.logical - HALF) + WINDOW);
+  while (state.playlist.length < need) {
     state.playlist.push(nextItemId());
   }
 }
@@ -241,6 +255,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const CAT_LABEL = {
   spicy: '麻辣', grill: '烧烤', fried: '炸物', seafood: '海鲜', noodles: '面食',
   western: '西式', rice: '米饭', dimsum: '点心', snack: '小吃', drink: '饮料', sweet: '甜品',
+  barbecue: '烤肉', frog: '牛蛙', regional: '地方菜', shengjian: '生煎', luwei: '卤味',
 };
 
 function orderEtaMinutes(list, total) {
